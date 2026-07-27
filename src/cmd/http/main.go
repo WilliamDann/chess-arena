@@ -30,13 +30,16 @@ func main() {
 	mux := http.NewServeMux()
 
 	users := postgres.NewUserStore(pool)
+	profiles := postgres.NewProfileStore(pool)
 	sessions := postgres.NewSessionStore(pool)
 
-	userService := services.NewUserService(users)
+	userService := services.NewUserService(users, profiles)
 	sessionService := services.NewSessionService(users, sessions)
+	profileService := services.NewProfileService(profiles, sessionService.RequireAuth)
 
 	userService.Register(mux)
 	sessionService.Register(mux)
+	profileService.Register(mux)
 
 	slog.Info("starting http server on 0.0.0.0:8080")
 	http.ListenAndServe("0.0.0.0:8080", mux)

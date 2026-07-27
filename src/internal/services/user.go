@@ -10,16 +10,16 @@ import (
 )
 
 type UserService struct {
-	users *postgres.UserStore
+	users    *postgres.UserStore
+	profiles *postgres.ProfileStore
 }
 
-func NewUserService(users *postgres.UserStore) *UserService {
-	return &UserService{users: users}
+func NewUserService(users *postgres.UserStore, profiles *postgres.ProfileStore) *UserService {
+	return &UserService{users: users, profiles: profiles}
 }
 
 func (s *UserService) Register(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/user", s.createUser)
-	mux.HandleFunc("GET /api/user/{id}", s.getUser)
+	mux.HandleFunc("POST /api/profile", s.createUser)
 }
 
 func (s *UserService) createUser(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +27,7 @@ func (s *UserService) createUser(w http.ResponseWriter, r *http.Request) {
 	var requestData model.CreateUser
 	err := json.NewDecoder(r.Body).Decode(&requestData)
 	if err != nil {
-		http.Error(w, "could not parse json request body", http.StatusBadRequest)
+		http.Error(w, "json body must contain email, password, and display_name", http.StatusBadRequest)
 		return
 	}
 
@@ -44,28 +44,16 @@ func (s *UserService) createUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	requestData.Password = string(hash)
 
 	// create user
-	data, err := s.users.CreateUser(r.Context(), requestData.Email, string(hash))
+	data, err := s.users.CreateUser(r.Context(), requestData)
 	if err != nil {
 		http.Error(w, "failed to create", http.StatusBadRequest)
 		return
 	}
 
 	// return data
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
-}
-
-func (s *UserService) getUser(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	data, err := s.users.GetUserById(r.Context(), id)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
 }

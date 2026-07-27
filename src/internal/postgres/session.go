@@ -32,6 +32,20 @@ func (s *SessionStore) CreateSession(ctx context.Context, userID uuid.UUID) (mod
 	return data, nil
 }
 
+func (s *SessionStore) RefreshSession(ctx context.Context, sessionId uuid.UUID) (model.Session, error) {
+	rows, err := s.db.Query(ctx, "update sessions set expires_at = now() + interval '7 days' where id =$1 returning *", sessionId)
+	if err != nil {
+		return model.Session{}, err
+	}
+
+	data, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[model.Session])
+	if err != nil {
+		return model.Session{}, err
+	}
+
+	return data, nil
+}
+
 func (s *SessionStore) GetSessionById(ctx context.Context, id uuid.UUID) (model.Session, error) {
 	rows, err := s.db.Query(ctx, "select * from sessions where id = $1 and expires_at > now()", id)
 	if err != nil {

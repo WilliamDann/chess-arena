@@ -6,7 +6,7 @@ create table users (
 );
 
 -- stores public user information
-create table profile (
+create table profiles (
   id      uuid primary key not null references users(id),
   display_name text
 );
@@ -16,5 +16,5 @@ create table sessions (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references users(id),
   created_at timestamptz not null default now(),
-  expires_at timestamptz not null default now() + interval '30 days'
+  expires_at timestamptz not null default now() + interval '7 days'
 );
