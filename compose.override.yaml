@@ -1,0 +1,25 @@
+# Local development override — auto-merged by `docker compose up`.
+# Runs the Go services under air (live reload) with source bind-mounted in.
+# Production/deploy: `docker compose -f compose.yaml up` skips this file.
+services:
+  http:
+    build:
+      target: dev
+    image: chess-arena-http-dev
+    volumes:
+      - ./src:/app
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+
+  ws:
+    build:
+      target: dev
+    image: chess-arena-ws-dev
+    volumes:
+      - ./src:/app
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
