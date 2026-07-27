@@ -1,4 +1,4 @@
-package servies
+package services
 
 import (
 	"encoding/json"
@@ -20,7 +20,6 @@ func NewUserService(users *postgres.UserStore) *UserService {
 func (s *UserService) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/user", s.createUser)
 	mux.HandleFunc("GET /api/user/{id}", s.getUser)
-	mux.HandleFunc("GET /api/user", s.getUserEmail)
 }
 
 func (s *UserService) createUser(w http.ResponseWriter, r *http.Request) {
@@ -64,23 +63,6 @@ func (s *UserService) getUser(w http.ResponseWriter, r *http.Request) {
 	data, err := s.users.GetUserById(r.Context(), id)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
-}
-
-func (s *UserService) getUserEmail(w http.ResponseWriter, r *http.Request) {
-	email := r.URL.Query().Get("email")
-	if email == "" {
-		http.Error(w, "email pram missing from request url", http.StatusBadRequest)
-		return
-	}
-
-	data, err := s.users.GetUserByEmail(r.Context(), email)
-	if err != nil {
-		http.Error(w, "invalid email", http.StatusBadRequest)
 		return
 	}
 

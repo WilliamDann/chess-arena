@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/williamdann/chess-arena/internal/postgres"
-	services "github.com/williamdann/chess-arena/internal/services"
+	"github.com/williamdann/chess-arena/internal/services"
 )
 
 // test
@@ -30,9 +30,13 @@ func main() {
 	mux := http.NewServeMux()
 
 	users := postgres.NewUserStore(pool)
+	sessions := postgres.NewSessionStore(pool)
 
 	userService := services.NewUserService(users)
+	sessionService := services.NewSessionService(users, sessions)
+
 	userService.Register(mux)
+	sessionService.Register(mux)
 
 	slog.Info("starting http server on 0.0.0.0:8080")
 	http.ListenAndServe("0.0.0.0:8080", mux)
