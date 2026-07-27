@@ -16,7 +16,7 @@ func NewUserStore(db *pgxpool.Pool) *UserStore {
 	return &UserStore{db: db}
 }
 
-func (s *UserStore) GetUser(ctx context.Context, id string) (model.User, error) {
+func (s *UserStore) GetUserById(ctx context.Context, id string) (model.User, error) {
 	rows, err := s.db.Query(ctx, "select * from users where id = $1", id)
 	if err != nil {
 		return model.User{}, err
@@ -27,13 +27,13 @@ func (s *UserStore) GetUser(ctx context.Context, id string) (model.User, error) 
 		return model.User{}, err
 	}
 
-	return data, err
+	return data, nil
 }
 
 func (s *UserStore) GetUserByEmail(ctx context.Context, email string) (model.User, error) {
-	rows, err := s.db.Query(ctx, "select * from users where email=$1", email)
+	rows, err := s.db.Query(ctx, "select * from users where email = $1", email)
 	if err != nil {
-		return model.User{}, nil
+		return model.User{}, err
 	}
 
 	data, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[model.User])
@@ -41,5 +41,5 @@ func (s *UserStore) GetUserByEmail(ctx context.Context, email string) (model.Use
 		return model.User{}, err
 	}
 
-	return data, err
+	return data, nil
 }

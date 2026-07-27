@@ -9,7 +9,7 @@ create table users (
 create table profile (
   id      uuid primary key not null references users(id),
   display_name text
-)
+);
 
 -- stores auth sessions for users
 create table sessions (

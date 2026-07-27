@@ -5,10 +5,10 @@ import "github.com/google/uuid"
 type User struct {
 	Id           uuid.UUID `json:"id"`
 	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
+	PasswordHash string    `json:"-" db:"pw_hash"`
 }
 
-type UserStore interface {
-	GetUser(id string) (User, error)
-	GetUserByName(name string) (User, error)
+type CreateUser struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
