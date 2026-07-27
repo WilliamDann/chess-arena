@@ -1,6 +1,10 @@
 package model
 
-import "github.com/google/uuid"
+import (
+	"errors"
+
+	"github.com/google/uuid"
+)
 
 type User struct {
 	Id           uuid.UUID `json:"id"`
@@ -11,4 +15,16 @@ type User struct {
 type CreateUser struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+// TODO real email validation
+func (cu CreateUser) Validate() error {
+	if len(cu.Email) < 1 {
+		return errors.New("an email is required")
+	}
+	if len(cu.Password) < 5 {
+		return errors.New("password must be >= 5 chars")
+	}
+
+	return nil
 }

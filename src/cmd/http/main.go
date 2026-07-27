@@ -1,20 +1,38 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log/slog"
 	"net/http"
-)
+	"os"
 
-func handleMain(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "Hello world")
-}
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/williamdann/chess-arena/internal/postgres"
+	services "github.com/williamdann/chess-arena/internal/services"
+)
 
 // test
 func main() {
+	ctx := context.Background()
+
+	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		slog.Error("invalid database config", "err", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		slog.Error("could not reach database", "err", err)
+		os.Exit(1)
+	}
+
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /", handleMain)
+	users := postgres.NewUserStore(pool)
+
+	userService := services.NewUserService(users)
+	userService.Register(mux)
 
 	slog.Info("starting http server on 0.0.0.0:8080")
 	http.ListenAndServe("0.0.0.0:8080", mux)
