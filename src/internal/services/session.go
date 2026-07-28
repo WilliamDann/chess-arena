@@ -33,7 +33,12 @@ func NewSessionService(users *postgres.UserStore, sessions *postgres.SessionStor
 }
 
 func (s *SessionService) Register(mux *http.ServeMux) {
+	mux.Handle("GET /api/session/my", s.RequireAuth(http.HandlerFunc(s.getMySessions)))
+
 	mux.HandleFunc("POST /api/session", s.createSession)
+
+	mux.Handle("DELETE /api/session/my", s.RequireAuth(http.HandlerFunc(s.signOut)))
+	mux.Handle("DELETE /api/session/my/all", s.RequireAuth(http.HandlerFunc(s.signOutAll)))
 }
 
 func (s *SessionService) createSession(w http.ResponseWriter, r *http.Request) {
@@ -87,6 +92,57 @@ func (s *SessionService) createSession(w http.ResponseWriter, r *http.Request) {
 	// OK
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
+}
+
+func (s *SessionService) getMySessions(w http.ResponseWriter, r *http.Request) {
+	session, ok := SessionFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid session", http.StatusUnauthorized)
+		return
+	}
+
+	sessions, err := s.sessions.GetSessionsForUser(r.Context(), session.UserId)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// indicate which sessions is the current sessions
+	withCurrent := model.SessionsWithCurrent{CurrentId: session.Id, Sessions: sessions}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(withCurrent)
+}
+
+func (s *SessionService) signOut(w http.ResponseWriter, r *http.Request) {
+	session, ok := SessionFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid session", http.StatusUnauthorized)
+		return
+	}
+	err := s.sessions.DeleteSession(r.Context(), session.Id)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *SessionService) signOutAll(w http.ResponseWriter, r *http.Request) {
+	session, ok := SessionFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid session", http.StatusUnauthorized)
+		return
+	}
+
+	err := s.sessions.DeleteAllForUser(r.Context(), session.UserId)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // middleware function for checking auth

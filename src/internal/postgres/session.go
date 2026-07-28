@@ -59,3 +59,27 @@ func (s *SessionStore) GetSessionById(ctx context.Context, id uuid.UUID) (model.
 
 	return data, nil
 }
+
+func (s *SessionStore) GetSessionsForUser(ctx context.Context, userId uuid.UUID) ([]model.Session, error) {
+	rows, err := s.db.Query(ctx, "select * from sessions where user_id = $1 and expires_at > now()", userId)
+	if err != nil {
+		return []model.Session{}, errors.New("session not found")
+	}
+
+	data, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.Session])
+	if err != nil {
+		return []model.Session{}, err
+	}
+
+	return data, nil
+}
+
+func (s *SessionStore) DeleteSession(ctx context.Context, id uuid.UUID) error {
+	_, err := s.db.Exec(ctx, "delete from sessions where id = $1", id)
+	return err
+}
+
+func (s *SessionStore) DeleteAllForUser(ctx context.Context, userId uuid.UUID) error {
+	_, err := s.db.Exec(ctx, "delete from sessions where user_id = $1", userId)
+	return err
+}

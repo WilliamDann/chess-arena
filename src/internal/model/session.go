@@ -19,6 +19,11 @@ type CreateSession struct {
 	Password string `json:"password"`
 }
 
+type SessionsWithCurrent struct {
+	CurrentId uuid.UUID `json:"current_id"`
+	Sessions  []Session `json:"sessions"`
+}
+
 func (cs *CreateSession) Validate() error {
 	if cs.Email == "" {
 		return errors.New("email is missing")
