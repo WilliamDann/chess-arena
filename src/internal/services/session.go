@@ -123,6 +123,16 @@ func (s *SessionService) signOut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// unset cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "chess-arena-session",
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Now(),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   false, // TODO when using https, set to true
+	})
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -139,6 +149,16 @@ func (s *SessionService) signOutAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// unset cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "chess-arena-session",
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Now(),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   false, // TODO when using https, set to true
+	})
 	w.WriteHeader(http.StatusOK)
 }
 
