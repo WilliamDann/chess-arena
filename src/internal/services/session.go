@@ -101,17 +101,14 @@ func (s *SessionService) getMySessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessions, err := s.sessions.GetSessionsForUser(r.Context(), session.UserId)
+	sessions, err := s.sessions.GetSessionsForUser(r.Context(), session.UserId, session.Id)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	// indicate which sessions is the current sessions
-	withCurrent := model.SessionsWithCurrent{CurrentId: session.Id, Sessions: sessions}
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(withCurrent)
+	json.NewEncoder(w).Encode(sessions)
 }
 
 func (s *SessionService) signOut(w http.ResponseWriter, r *http.Request) {

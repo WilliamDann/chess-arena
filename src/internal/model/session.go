@@ -8,20 +8,22 @@ import (
 )
 
 type Session struct {
-	Id        uuid.UUID `json:"id"`
+	Id        uuid.UUID `json:"-" db:"id"` // omit actual token in requests
 	UserId    uuid.UUID `json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// session data safe to return to clients (no token)
+type SessionInfo struct {
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Current   bool      `json:"current"`
+}
+
 type CreateSession struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-}
-
-type SessionsWithCurrent struct {
-	CurrentId uuid.UUID `json:"current_id"`
-	Sessions  []Session `json:"sessions"`
 }
 
 func (cs *CreateSession) Validate() error {

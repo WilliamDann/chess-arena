@@ -60,15 +60,15 @@ func (s *SessionStore) GetSessionById(ctx context.Context, id uuid.UUID) (model.
 	return data, nil
 }
 
-func (s *SessionStore) GetSessionsForUser(ctx context.Context, userId uuid.UUID) ([]model.Session, error) {
-	rows, err := s.db.Query(ctx, "select * from sessions where user_id = $1 and expires_at > now()", userId)
+func (s *SessionStore) GetSessionsForUser(ctx context.Context, userId uuid.UUID, currentId uuid.UUID) ([]model.SessionInfo, error) {
+	rows, err := s.db.Query(ctx, "select created_at, expires_at, id = $2 as current from sessions where user_id = $1 and expires_at > now()", userId, currentId)
 	if err != nil {
-		return []model.Session{}, errors.New("session not found")
+		return []model.SessionInfo{}, err
 	}
 
-	data, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.Session])
+	data, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.SessionInfo])
 	if err != nil {
-		return []model.Session{}, err
+		return []model.SessionInfo{}, err
 	}
 
 	return data, nil
