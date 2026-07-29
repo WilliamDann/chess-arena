@@ -168,20 +168,20 @@ func (s *SessionService) RequireAuth(next http.Handler) http.Handler {
 		// parse cookie
 		cookie, err := r.Cookie("chess-arena-session")
 		if err != nil {
-			http.Error(w, "unauithorized", http.StatusUnauthorized)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 
 		id, err := uuid.Parse(cookie.Value)
 		if err != nil {
-			http.Error(w, "unauithorized", http.StatusUnauthorized)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 
 		// check session exists
 		session, err := s.sessions.GetSessionById(r.Context(), id)
 		if err != nil {
-			http.Error(w, "unauithorized", http.StatusUnauthorized)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 
