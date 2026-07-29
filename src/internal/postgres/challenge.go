@@ -11,7 +11,7 @@ import (
 )
 
 // maximum outstanding challenges a single user may have at once
-const maxChallengesPerUser = 5
+const maxChallengesPerUser = 1
 
 var ErrChallengeLimit = errors.New("challenge limit reached")
 
