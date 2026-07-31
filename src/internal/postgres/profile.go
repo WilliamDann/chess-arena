@@ -5,16 +5,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/williamdann/chess-arena/internal/model"
 )
 
 type ProfileStore struct {
-	db *pgxpool.Pool
+	db DB
 }
 
-func NewProfileStore(db *pgxpool.Pool) *ProfileStore {
+func NewProfileStore(db DB) *ProfileStore {
 	return &ProfileStore{db: db}
+}
+
+// WithTx returns a copy of the store that runs its queries inside tx.
+func (s *ProfileStore) WithTx(tx pgx.Tx) *ProfileStore {
+	return &ProfileStore{db: tx}
 }
 
 func (s *ProfileStore) GetProfile(ctx context.Context, userId uuid.UUID) (model.Profile, error) {

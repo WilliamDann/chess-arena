@@ -6,16 +6,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/williamdann/chess-arena/internal/model"
 )
 
 type SessionStore struct {
-	db *pgxpool.Pool
+	db DB
 }
 
-func NewSessionStore(db *pgxpool.Pool) *SessionStore {
+func NewSessionStore(db DB) *SessionStore {
 	return &SessionStore{db: db}
+}
+
+// WithTx returns a copy of the store that runs its queries inside tx.
+func (s *SessionStore) WithTx(tx pgx.Tx) *SessionStore {
+	return &SessionStore{db: tx}
 }
 
 func (s *SessionStore) CreateSession(ctx context.Context, userID uuid.UUID) (model.Session, error) {

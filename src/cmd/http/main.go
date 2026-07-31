@@ -33,11 +33,12 @@ func main() {
 	profiles := postgres.NewProfileStore(pool)
 	sessions := postgres.NewSessionStore(pool)
 	challenges := postgres.NewChallengeStore(pool)
+	games := postgres.NewGameStore(pool)
 
 	userService := services.NewUserService(users, profiles)
 	sessionService := services.NewSessionService(users, sessions)
 	profileService := services.NewProfileService(profiles, sessionService.RequireAuth)
-	challengeService := services.NewChallengeService(challenges, sessionService.RequireAuth)
+	challengeService := services.NewChallengeService(challenges, games, sessionService.RequireAuth)
 
 	userService.Register(mux)
 	sessionService.Register(mux)

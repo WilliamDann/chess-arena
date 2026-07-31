@@ -6,16 +6,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/williamdann/chess-arena/internal/model"
 )
 
 type UserStore struct {
-	db *pgxpool.Pool
+	db DB
 }
 
-func NewUserStore(db *pgxpool.Pool) *UserStore {
+func NewUserStore(db DB) *UserStore {
 	return &UserStore{db: db}
+}
+
+// WithTx returns a copy of the store that runs its queries inside tx.
+func (s *UserStore) WithTx(tx pgx.Tx) *UserStore {
+	return &UserStore{db: tx}
 }
 
 func (s *UserStore) CreateUser(ctx context.Context, data model.CreateUser) (model.User, error) {

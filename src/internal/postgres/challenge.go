@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/williamdann/chess-arena/internal/model"
 )
 
@@ -14,13 +14,19 @@ import (
 const maxChallengesPerUser = 1
 
 var ErrChallengeLimit = errors.New("challenge limit reached")
+var ErrUnknownUser = errors.New("unknown user")
 
 type ChallengeStore struct {
-	db *pgxpool.Pool
+	db DB
 }
 
-func NewChallengeStore(db *pgxpool.Pool) *ChallengeStore {
+func NewChallengeStore(db DB) *ChallengeStore {
 	return &ChallengeStore{db: db}
+}
+
+// WithTx returns a copy of the store that runs its queries inside tx.
+func (s *ChallengeStore) WithTx(tx pgx.Tx) *ChallengeStore {
+	return &ChallengeStore{db: tx}
 }
 
 func (s *ChallengeStore) GetById(ctx context.Context, id uuid.UUID) (model.Challenge, error) {
@@ -82,7 +88,7 @@ func (s *ChallengeStore) GetToUser(ctx context.Context, userId uuid.UUID) ([]mod
 func (s *ChallengeStore) Create(ctx context.Context, request model.CreateChallenge) (model.Challenge, error) {
 	rows, err := s.db.Query(
 		ctx,
-		`insert into challenges (from_player, to_player, clock_init_ms, clock_inc_ms)
+		`insert into challenges (from_player, to_player, clock_initial_ms, clock_increment_ms)
 		 select $1::uuid, $2::uuid, $3::int, $4::int
 		 where (select count(*) from challenges where from_player = $1) < $5
 		 returning *`,
@@ -100,6 +106,10 @@ func (s *ChallengeStore) Create(ctx context.Context, request model.CreateChallen
 	challenge, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[model.Challenge])
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.Challenge{}, ErrChallengeLimit
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+		return model.Challenge{}, ErrUnknownUser
 	}
 	if err != nil {
 		return model.Challenge{}, err
