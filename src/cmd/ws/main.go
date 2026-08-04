@@ -22,15 +22,6 @@ var upgrader = websocket.Upgrader{
 
 type wsHandler func(*websocket.Conn, *http.Request)
 
-func logTopic(ps *pubsub.PubSub, topic string) {
-	ch, _ := ps.Sub(topic)
-	go func() {
-		for msg := range ch {
-			slog.Info("pubsub event", "topic", msg.Topic, "payload", string(msg.Payload))
-		}
-	}()
-}
-
 func connectThen(handler wsHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// validate session
@@ -79,9 +70,6 @@ func main() {
 	// start events listner
 	pubsub := pubsub.NewPubSub(pool)
 	go pubsub.Listen(ctx)
-
-	// debug: log all lobby events
-	logTopic(pubsub, events.TopicLobby)
 
 	// start websocket server
 	mux := http.NewServeMux()
