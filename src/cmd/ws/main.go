@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/williamdann/chess-arena/internal/events"
@@ -20,7 +22,9 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func wsEcho(conn *websocket.Conn) {
+type wsHandler func(*websocket.Conn, *http.Request)
+
+func wsEcho(conn *websocket.Conn, _ *http.Request) {
 	for {
 		typ, data, err := conn.ReadMessage()
 		if err != nil {
@@ -32,8 +36,8 @@ func wsEcho(conn *websocket.Conn) {
 	}
 }
 
-func wsLobby(pubsub *pubsub.PubSub) func(*websocket.Conn) {
-	return func(conn *websocket.Conn) {
+func wsLobby(pubsub *pubsub.PubSub) wsHandler {
+	return func(conn *websocket.Conn, _ *http.Request) {
 		ch, drop := pubsub.Sub(events.TopicLobby)
 		defer drop()
 
@@ -54,6 +58,58 @@ func wsLobby(pubsub *pubsub.PubSub) func(*websocket.Conn) {
 	}
 }
 
+func wsGame(ps *pubsub.PubSub, games *postgres.GameStore, moves *postgres.MoveStore) wsHandler {
+	return func(conn *websocket.Conn, r *http.Request) {
+		id, err := uuid.Parse(r.URL.Query().Get("id"))
+		if err != nil {
+			conn.WriteMessage(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "invalid game id"))
+			return
+		}
+
+		// subscribe before snapshotting so no event lands between the two;
+		// the client dedups snapshot/delta overlap by ply
+		ch, drop := ps.Sub(events.GameTopic(id))
+		defer drop()
+
+		go func() {
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					drop()
+					return
+				}
+			}
+		}()
+
+		game, err := games.GetById(r.Context(), id)
+		if err != nil {
+			conn.WriteMessage(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "unknown game"))
+			return
+		}
+		history, err := moves.GetForGame(r.Context(), id)
+		if err != nil {
+			slog.Error("failed to load moves", "game", id, "err", err)
+			return
+		}
+
+		snapshot, err := json.Marshal(events.NewGameStateEvent(game, history))
+		if err != nil {
+			slog.Error("failed to marshal game snapshot", "game", id, "err", err)
+			return
+		}
+		if err := conn.WriteMessage(websocket.TextMessage, snapshot); err != nil {
+			return
+		}
+
+		for msg := range ch {
+			if err := conn.WriteMessage(websocket.TextMessage, msg.Payload); err != nil {
+				return
+			}
+		}
+	}
+}
+
 func logTopic(ps *pubsub.PubSub, topic string) {
 	ch, _ := ps.Sub(topic)
 	go func() {
@@ -63,7 +119,7 @@ func logTopic(ps *pubsub.PubSub, topic string) {
 	}()
 }
 
-func connectThen(handler func(*websocket.Conn)) http.HandlerFunc {
+func connectThen(handler wsHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// validate session
 		_, ok := services.SessionFromContext(r.Context())
@@ -82,7 +138,7 @@ func connectThen(handler func(*websocket.Conn)) http.HandlerFunc {
 		defer conn.Close()
 
 		// call websocket handler
-		handler(conn)
+		handler(conn, r)
 	}
 }
 
@@ -103,6 +159,8 @@ func main() {
 
 	users := postgres.NewUserStore(pool)
 	sessions := postgres.NewSessionStore(pool)
+	games := postgres.NewGameStore(pool)
+	moves := postgres.NewMoveStore(pool)
 
 	sessionService := services.NewSessionService(users, sessions)
 
@@ -118,7 +176,7 @@ func main() {
 	mux.Handle("GET /connect", sessionService.RequireAuth(connectThen(wsEcho)))
 
 	mux.Handle("GET /lobby", sessionService.RequireAuth(connectThen(wsLobby(pubsub))))
-	mux.Handle("GET /game", sessionService.RequireAuth(connectThen(wsEcho)))
+	mux.Handle("GET /game", sessionService.RequireAuth(connectThen(wsGame(pubsub, games, moves))))
 
 	slog.Info("started websocket server on 0.0.0.0:8081")
 	http.ListenAndServe("0.0.0.0:8081", mux)

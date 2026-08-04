@@ -14,6 +14,12 @@ type Clock struct {
 	ClockLastHit   time.Time `json:"clock_last_hit" db:"clock_last_hit"`
 }
 
+type ClockUpdate struct {
+	ClockWhite   int       `json:"clock_white_ms" db:"clock_white_ms"`
+	ClockBlack   int       `json:"clock_black_ms" db:"clock_black_ms"`
+	ClockLastHit time.Time `json:"clock_last_hit" db:"clock_last_hit"`
+}
+
 type Game struct {
 	Id          uuid.UUID `json:"id"`
 	WhitePlayer uuid.UUID `json:"white_player"`
