@@ -24,7 +24,7 @@ func (s *GameStore) WithTx(tx pgx.Tx) *GameStore {
 func (s *GameStore) Create(ctx context.Context, request model.CreateGame) (model.Game, error) {
 	rows, err := s.db.Query(
 		ctx,
-		"insert into games (white_player, black_player, clock_initial_ms, clock_increment_ms, clock_white_ms, clock_black_ms) values ($1, $2, $3, $4, $3, $3) returning *",
+		"insert into games (white_player, black_player, clock_initial_ms, clock_increment_ms) values ($1, $2, $3, $4) returning *",
 		request.WhitePlayer,
 		request.BlackPlayer,
 		request.ClockInitial,
@@ -55,6 +55,22 @@ func (s *GameStore) GetById(ctx context.Context, item uuid.UUID) (model.Game, er
 	}
 
 	return game, err
+}
+
+// SetResult records the result for a game that is still undecided, reporting
+// whether this call was the one that decided it. Concurrent enders race on
+// the guard and only one wins.
+func (s *GameStore) SetResult(ctx context.Context, id uuid.UUID, result string) (bool, error) {
+	tag, err := s.db.Exec(
+		ctx,
+		"update games set result = $2, result_at = now() where id = $1 and result = '*'",
+		id,
+		result,
+	)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
 }
 
 func (s *GameStore) GetActiveForPlayer(ctx context.Context, player uuid.UUID) (model.Game, error) {

@@ -7,17 +7,8 @@ import (
 )
 
 type Clock struct {
-	ClockInitial   int       `json:"clock_init_ms" db:"clock_initial_ms"`
-	ClockIncrement int       `json:"clock_inc_ms" db:"clock_increment_ms"`
-	ClockWhite     int       `json:"clock_white_ms" db:"clock_white_ms"`
-	ClockBlack     int       `json:"clock_black_ms" db:"clock_black_ms"`
-	ClockLastHit   time.Time `json:"clock_last_hit" db:"clock_last_hit"`
-}
-
-type ClockUpdate struct {
-	ClockWhite   int       `json:"clock_white_ms" db:"clock_white_ms"`
-	ClockBlack   int       `json:"clock_black_ms" db:"clock_black_ms"`
-	ClockLastHit time.Time `json:"clock_last_hit" db:"clock_last_hit"`
+	ClockInitial   int `json:"clock_init_ms" db:"clock_initial_ms"`
+	ClockIncrement int `json:"clock_inc_ms" db:"clock_increment_ms"`
 }
 
 type Game struct {

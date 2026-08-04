@@ -23,10 +23,7 @@ create table games (
 
   clock_initial_ms    int not null,
   clock_increment_ms  int not null default 0,
-  clock_white_ms      int not null,
-  clock_black_ms      int not null,
 
-  clock_last_hit      timestamptz not null default now(),
   created_at          timestamptz not null default now(),
   result_at           timestamptz
 );

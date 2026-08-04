@@ -9,6 +9,7 @@ import (
 
 const TopicGame = "game"
 
+// GameTopic is the per-game topic that game events are published on.
 func GameTopic(id uuid.UUID) string {
 	return TopicGame + ":" + id.String()
 }
@@ -16,35 +17,40 @@ func GameTopic(id uuid.UUID) string {
 type GameEventType string
 
 const (
-	GameMove  GameEventType = "game.move"
-	GameState GameEventType = "game.state"
+	GameMove GameEventType = "game.move"
+	GameEnd  GameEventType = "game.end"
 )
 
 type MoveEvent struct {
-	Type   GameEventType     `json:"type"`
-	GameID uuid.UUID         `json:"game_id"`
-	Move   model.Move        `json:"move"`
-	Clock  model.ClockUpdate `json:"clock"`
+	Type GameEventType `json:"type"`
+	Move model.Move    `json:"move"`
 }
 
 func (e *MoveEvent) Topic() string {
-	return GameTopic(e.GameID)
+	return GameTopic(e.Move.GameID)
 }
 func (e *MoveEvent) Payload() ([]byte, error) {
 	return json.Marshal(e)
 }
 
-func NewMoveEvent(move model.Move, clock model.ClockUpdate) *MoveEvent {
-	return &MoveEvent{Type: GameMove, GameID: move.GameID, Move: move, Clock: clock}
+func NewMoveEvent(move model.Move) *MoveEvent {
+	return &MoveEvent{Type: GameMove, Move: move}
 }
 
-// send to client directly - no pubsub
-type GameStateEvent struct {
-	Type  GameEventType `json:"type"`
-	Game  model.Game    `json:"game"`
-	Moves []model.Move  `json:"moves"`
+type EndEvent struct {
+	Type   GameEventType `json:"type"`
+	GameID uuid.UUID     `json:"game_id"`
+	Result string        `json:"result"`
+	Reason string        `json:"reason"`
 }
 
-func NewGameStateEvent(game model.Game, moves []model.Move) *GameStateEvent {
-	return &GameStateEvent{Type: GameState, Game: game, Moves: moves}
+func (e *EndEvent) Topic() string {
+	return GameTopic(e.GameID)
+}
+func (e *EndEvent) Payload() ([]byte, error) {
+	return json.Marshal(e)
+}
+
+func NewEndEvent(gameId uuid.UUID, result, reason string) *EndEvent {
+	return &EndEvent{Type: GameEnd, GameID: gameId, Result: result, Reason: reason}
 }
