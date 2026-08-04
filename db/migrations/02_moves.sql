@@ -2,7 +2,7 @@
 create table moves (
   game_id    uuid not null references games(id),
   ply        int  not null,
-  ci        text not null,
+  uci        text not null,
 
   created_at timestamptz not null default now(),
 
