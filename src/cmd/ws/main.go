@@ -8,7 +8,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/williamdann/chess-arena/internal/events"
 	"github.com/williamdann/chess-arena/internal/postgres"
 	"github.com/williamdann/chess-arena/internal/pubsub"
 	"github.com/williamdann/chess-arena/internal/services"
