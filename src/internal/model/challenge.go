@@ -19,8 +19,8 @@ type Challenge struct {
 type CreateChallenge struct {
 	FromPlayer     uuid.UUID  `json:"from_player"`
 	ToPlayer       *uuid.UUID `json:"to_player"`
-	ClockInitial   int        `json:"clock_init_ms" db:"clock_initial_ms"`
-	ClockIncrement int        `json:"clock_inc_ms" db:"clock_increment_ms"`
+	ClockInitial   int        `json:"clock_initial_ms" db:"clock_initial_ms"`
+	ClockIncrement int        `json:"clock_increment_ms" db:"clock_increment_ms"`
 }
 
 func (c *CreateChallenge) Validate() error {

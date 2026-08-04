@@ -4,21 +4,25 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/williamdann/chess-arena/internal/events"
 	"github.com/williamdann/chess-arena/internal/model"
 	"github.com/williamdann/chess-arena/internal/postgres"
+	"github.com/williamdann/chess-arena/internal/pubsub"
 )
 
 type ChallengeService struct {
 	challenges *postgres.ChallengeStore
 	games      *postgres.GameStore
+	pubsub     *pubsub.PubSub
 	auth       func(http.Handler) http.Handler
 }
 
-func NewChallengeService(store *postgres.ChallengeStore, games *postgres.GameStore, auth func(http.Handler) http.Handler) *ChallengeService {
-	return &ChallengeService{challenges: store, games: games, auth: auth}
+func NewChallengeService(store *postgres.ChallengeStore, games *postgres.GameStore, pubsub *pubsub.PubSub, auth func(http.Handler) http.Handler) *ChallengeService {
+	return &ChallengeService{challenges: store, games: games, pubsub: pubsub, auth: auth}
 }
 
 func (s *ChallengeService) Register(mux *http.ServeMux) {
@@ -131,7 +135,6 @@ func (s *ChallengeService) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// create object
-	// TODO emit pubsub
 	data, err := s.challenges.Create(r.Context(), request)
 	if errors.Is(err, postgres.ErrChallengeLimit) {
 		http.Error(w, "too many open challenges", http.StatusConflict)
@@ -148,6 +151,8 @@ func (s *ChallengeService) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// return result
+	s.pubsub.Pub(r.Context(), events.LobbyCreateEvent(data))
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(data)
@@ -167,12 +172,13 @@ func (s *ChallengeService) deleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.challenges.DeleteForUser(r.Context(), id, me.UserId)
+	data, err := s.challenges.DeleteForUser(r.Context(), id, me.UserId)
 	if err != nil {
 		http.Error(w, "failed to delete", http.StatusBadRequest)
 		return
 	}
 
+	s.pubsub.Pub(r.Context(), events.LobbyDeleteEvent(data))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -183,12 +189,15 @@ func (s *ChallengeService) deleteIncoming(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err := s.challenges.DeleteIncoming(r.Context(), me.UserId)
+	data, err := s.challenges.DeleteIncoming(r.Context(), me.UserId)
 	if err != nil {
 		http.Error(w, "failed to delete", http.StatusInternalServerError)
 		return
 	}
 
+	for _, item := range data {
+		s.pubsub.Pub(r.Context(), events.LobbyDeleteEvent(item))
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -199,16 +208,20 @@ func (s *ChallengeService) deleteOutgoing(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err := s.challenges.DeleteOutgoing(r.Context(), me.UserId)
+	data, err := s.challenges.DeleteOutgoing(r.Context(), me.UserId)
 	if err != nil {
 		http.Error(w, "failed to delete", http.StatusInternalServerError)
 		return
 	}
 
+	for _, item := range data {
+		s.pubsub.Pub(r.Context(), events.LobbyDeleteEvent(item))
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
 func (s *ChallengeService) accept(w http.ResponseWriter, r *http.Request) {
+	// parse request
 	me, ok := SessionFromContext(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -222,29 +235,25 @@ func (s *ChallengeService) accept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	challenge, err := s.challenges.GetById(r.Context(), id)
+	// claim challange
+	challenge, err := s.challenges.ClaimChallenge(r.Context(), id, me.UserId)
 	if err != nil {
-		http.Error(w, "challenge not found", http.StatusNotFound)
+		http.Error(w, "unable to accept challenge", http.StatusNotFound)
 		return
 	}
+	s.pubsub.Pub(r.Context(), events.LobbyDeleteEvent(challenge))
 
-	if challenge.ToPlayer != nil && *challenge.ToPlayer != me.UserId {
-		http.Error(w, "you are not the challenged player", http.StatusForbidden)
-		return
-	}
-	challenge.ToPlayer = &me.UserId
-
-	err = challenge.Validate()
-	if err != nil {
-		http.Error(w, "invalid challenge: "+err.Error(), http.StatusBadRequest)
-		return
+	// coin flip for white/black
+	whitePlayer := challenge.FromPlayer
+	blackPlayer := me.UserId
+	if rand.N(2) == 0 {
+		blackPlayer, whitePlayer = whitePlayer, blackPlayer
 	}
 
 	// create the game
-	// TODO random colors
 	request := model.CreateGame{
-		WhitePlayer:    challenge.FromPlayer,
-		BlackPlayer:    *challenge.ToPlayer,
+		WhitePlayer:    whitePlayer,
+		BlackPlayer:    blackPlayer,
 		ClockInitial:   challenge.ClockInitial,
 		ClockIncrement: challenge.ClockIncrement,
 	}
@@ -252,13 +261,6 @@ func (s *ChallengeService) accept(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("failed to create game", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	// remove the challenge
-	err = s.challenges.Delete(r.Context(), challenge.Id)
-	if err != nil {
-		http.Error(w, "failed to remove", http.StatusInternalServerError)
 		return
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/williamdann/chess-arena/internal/postgres"
+	"github.com/williamdann/chess-arena/internal/pubsub"
 	"github.com/williamdann/chess-arena/internal/services"
 )
 
@@ -27,6 +28,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	pubsub := pubsub.NewPubSub(pool)
 	mux := http.NewServeMux()
 
 	users := postgres.NewUserStore(pool)
@@ -38,7 +40,7 @@ func main() {
 	userService := services.NewUserService(users, profiles)
 	sessionService := services.NewSessionService(users, sessions)
 	profileService := services.NewProfileService(profiles, sessionService.RequireAuth)
-	challengeService := services.NewChallengeService(challenges, games, sessionService.RequireAuth)
+	challengeService := services.NewChallengeService(challenges, games, pubsub, sessionService.RequireAuth)
 
 	userService.Register(mux)
 	sessionService.Register(mux)

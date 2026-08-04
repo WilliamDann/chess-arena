@@ -118,22 +118,78 @@ func (s *ChallengeStore) Create(ctx context.Context, request model.CreateChallen
 	return challenge, nil
 }
 
-func (s *ChallengeStore) Delete(ctx context.Context, id uuid.UUID) error {
-	_, err := s.db.Exec(ctx, "delete from challenges where id = $1", id)
-	return err
+func (s *ChallengeStore) Delete(ctx context.Context, id uuid.UUID) (model.Challenge, error) {
+	rows, err := s.db.Query(ctx, "delete from challenges where id = $1 returning *", id)
+	if err != nil {
+		return model.Challenge{}, err
+	}
+
+	challenge, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[model.Challenge])
+	if err != nil {
+		return model.Challenge{}, err
+	}
+
+	return challenge, nil
 }
 
-func (s *ChallengeStore) DeleteForUser(ctx context.Context, itemId, userId uuid.UUID) error {
-	_, err := s.db.Exec(ctx, "delete from challenges where id = $2 and (from_player = $1 or to_player = $1)", userId, itemId)
-	return err
+func (s *ChallengeStore) DeleteForUser(ctx context.Context, itemId, userId uuid.UUID) (model.Challenge, error) {
+	rows, err := s.db.Query(ctx, "delete from challenges where id = $2 and (from_player = $1 or to_player = $1) returning *", userId, itemId)
+	if err != nil {
+		return model.Challenge{}, err
+	}
+
+	challenge, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[model.Challenge])
+	if err != nil {
+		return model.Challenge{}, err
+	}
+
+	return challenge, nil
 }
 
-func (s *ChallengeStore) DeleteOutgoing(ctx context.Context, userId uuid.UUID) error {
-	_, err := s.db.Exec(ctx, "delete from challenges where from_player = $1", userId)
-	return err
+func (s *ChallengeStore) DeleteOutgoing(ctx context.Context, userId uuid.UUID) ([]model.Challenge, error) {
+	rows, err := s.db.Query(ctx, "delete from challenges where from_player = $1 returning *", userId)
+	if err != nil {
+		return []model.Challenge{}, err
+	}
+
+	data, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.Challenge])
+	if err != nil {
+		return []model.Challenge{}, err
+	}
+
+	return data, err
 }
 
-func (s *ChallengeStore) DeleteIncoming(ctx context.Context, userId uuid.UUID) error {
-	_, err := s.db.Exec(ctx, "delete from challenges where to_player = $1", userId)
-	return err
+func (s *ChallengeStore) DeleteIncoming(ctx context.Context, userId uuid.UUID) ([]model.Challenge, error) {
+	rows, err := s.db.Query(ctx, "delete from challenges where to_player = $1 returning *", userId)
+	if err != nil {
+		return []model.Challenge{}, err
+	}
+
+	data, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.Challenge])
+	if err != nil {
+		return []model.Challenge{}, err
+	}
+
+	return data, err
+}
+
+func (s *ChallengeStore) ClaimChallenge(ctx context.Context, itemId, userId uuid.UUID) (model.Challenge, error) {
+	rows, err := s.db.Query(
+		ctx,
+		"delete from challenges where id = $1 and from_player <> $2 and (to_player is null or to_player = $2) returning *",
+		itemId,
+		userId,
+	)
+
+	if err != nil {
+		return model.Challenge{}, err
+	}
+
+	challenge, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[model.Challenge])
+	if err != nil {
+		return model.Challenge{}, err
+	}
+
+	return challenge, nil
 }

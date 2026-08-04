@@ -12,7 +12,12 @@ import (
 
 const pgPubSubChannel = "events"
 
-type Event struct {
+type Event interface {
+	Topic() string
+	Payload() ([]byte, error)
+}
+
+type Message struct {
 	Topic   string          `json:"topic"`
 	Payload json.RawMessage `json:"payload"`
 }
@@ -21,33 +26,39 @@ type PubSub struct {
 	db *pgxpool.Pool
 
 	mu   sync.Mutex
-	subs map[string]map[chan Event]struct{}
+	subs map[string]map[chan Message]struct{}
 }
 
 func NewPubSub(db *pgxpool.Pool) *PubSub {
 	return &PubSub{
 		db:   db,
-		subs: make(map[string]map[chan Event]struct{}),
+		subs: make(map[string]map[chan Message]struct{}),
 	}
 }
 
 func (ps *PubSub) Pub(ctx context.Context, e Event) error {
-	payload, err := json.Marshal(e)
+	payload, err := e.Payload()
 	if err != nil {
 		return err
 	}
-	_, err = ps.db.Exec(ctx, "select pg_notify($1, $2)", pgPubSubChannel, string(payload))
+
+	msg, err := json.Marshal(Message{Topic: e.Topic(), Payload: payload})
+	if err != nil {
+		return err
+	}
+
+	_, err = ps.db.Exec(ctx, "select pg_notify($1, $2)", pgPubSubChannel, string(msg))
 	return err
 }
 
 // Sub subscribes to events for topic. The returned func unsubscribes and
 // closes the channel; it is safe to call more than once.
-func (ps *PubSub) Sub(topic string) (<-chan Event, func()) {
-	ch := make(chan Event, 16)
+func (ps *PubSub) Sub(topic string) (<-chan Message, func()) {
+	ch := make(chan Message, 16)
 
 	ps.mu.Lock()
 	if ps.subs[topic] == nil {
-		ps.subs[topic] = make(map[chan Event]struct{})
+		ps.subs[topic] = make(map[chan Message]struct{})
 	}
 	ps.subs[topic][ch] = struct{}{}
 	ps.mu.Unlock()
@@ -104,21 +115,21 @@ func (ps *PubSub) listen(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		var e Event
-		if err := json.Unmarshal([]byte(n.Payload), &e); err != nil {
+		var msg Message
+		if err := json.Unmarshal([]byte(n.Payload), &msg); err != nil {
 			slog.Error("pubsub: dropping undecodable event", "err", err)
 			continue
 		}
-		ps.dispatch(e)
+		ps.dispatch(msg)
 	}
 }
 
-func (ps *PubSub) dispatch(e Event) {
+func (ps *PubSub) dispatch(msg Message) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	for ch := range ps.subs[e.Topic] {
+	for ch := range ps.subs[msg.Topic] {
 		select {
-		case ch <- e:
+		case ch <- msg:
 		default: // subscriber is full: drop, consumers resync from the DB
 		}
 	}

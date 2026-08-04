@@ -8,6 +8,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/williamdann/chess-arena/internal/events"
+	"github.com/williamdann/chess-arena/internal/postgres"
 	"github.com/williamdann/chess-arena/internal/pubsub"
 	"github.com/williamdann/chess-arena/internal/services"
 )
@@ -18,29 +20,69 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func handleConnect(w http.ResponseWriter, r *http.Request) {
-	_, ok := services.SessionFromContext(r.Context())
-	if !ok {
-		http.Error(w, "invalid session", http.StatusUnauthorized)
-		return
-	}
-
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		slog.Error("failed ws upgrade", "err", err)
-		return
-	}
-
-	defer conn.Close()
-
+func wsEcho(conn *websocket.Conn) {
 	for {
-		msgType, data, err := conn.ReadMessage()
+		typ, data, err := conn.ReadMessage()
 		if err != nil {
+			slog.Error("ws error", "err", err)
 			return
 		}
 
-		// echo for test
-		conn.WriteMessage(msgType, data)
+		conn.WriteMessage(typ, data)
+	}
+}
+
+func wsLobby(pubsub *pubsub.PubSub) func(*websocket.Conn) {
+	return func(conn *websocket.Conn) {
+		ch, drop := pubsub.Sub(events.TopicLobby)
+		defer drop()
+
+		go func() {
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					drop()
+					return
+				}
+			}
+		}()
+
+		for msg := range ch {
+			if err := conn.WriteMessage(websocket.TextMessage, msg.Payload); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func logTopic(ps *pubsub.PubSub, topic string) {
+	ch, _ := ps.Sub(topic)
+	go func() {
+		for msg := range ch {
+			slog.Info("pubsub event", "topic", msg.Topic, "payload", string(msg.Payload))
+		}
+	}()
+}
+
+func connectThen(handler func(*websocket.Conn)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// validate session
+		_, ok := services.SessionFromContext(r.Context())
+		if !ok {
+			http.Error(w, "invalid session", http.StatusUnauthorized)
+			return
+		}
+
+		// upgrade to a websocket connection
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			slog.Error("failed ws upgrade", "err", err)
+			return
+		}
+
+		defer conn.Close()
+
+		// call websocket handler
+		handler(conn)
 	}
 }
 
@@ -59,13 +101,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	users := postgres.NewUserStore(pool)
+	sessions := postgres.NewSessionStore(pool)
+
+	sessionService := services.NewSessionService(users, sessions)
+
 	// start events listner
 	pubsub := pubsub.NewPubSub(pool)
 	go pubsub.Listen(ctx)
 
+	// debug: log all lobby events
+	logTopic(pubsub, events.TopicLobby)
+
 	// start websocket server
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /connect", handleConnect)
+	mux.Handle("GET /connect", sessionService.RequireAuth(connectThen(wsEcho)))
+
+	mux.Handle("GET /lobby", sessionService.RequireAuth(connectThen(wsLobby(pubsub))))
+	mux.Handle("GET /game", sessionService.RequireAuth(connectThen(wsEcho)))
 
 	slog.Info("started websocket server on 0.0.0.0:8081")
 	http.ListenAndServe("0.0.0.0:8081", mux)
