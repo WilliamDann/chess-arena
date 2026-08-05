@@ -36,16 +36,19 @@ func main() {
 	sessions := postgres.NewSessionStore(pool)
 	challenges := postgres.NewChallengeStore(pool)
 	games := postgres.NewGameStore(pool)
+	moves := postgres.NewMoveStore(pool)
 
 	userService := services.NewUserService(users, profiles)
 	sessionService := services.NewSessionService(users, sessions)
 	profileService := services.NewProfileService(profiles, sessionService.RequireAuth)
 	challengeService := services.NewChallengeService(challenges, games, pubsub, sessionService.RequireAuth)
+	moveService := services.NewMoveService(moves)
 
 	userService.Register(mux)
 	sessionService.Register(mux)
 	profileService.Register(mux)
 	challengeService.Register(mux)
+	moveService.Register(mux)
 
 	slog.Info("starting http server on 0.0.0.0:8080")
 	http.ListenAndServe("0.0.0.0:8080", mux)
