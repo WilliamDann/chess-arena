@@ -2,22 +2,21 @@ import { useEffect, useState } from 'react'
 import { api } from './client'
 
 // Challenges and games only carry player uuids; display names are resolved
-// lazily via GET /api/profile/{id} and cached for the session.
+// lazily via GET /api/profile/{id} and cached for the session. Raw ids are
+// never surfaced: missing names fall back to "anonymous", '…' while loading.
 
 const cache = new Map<string, string>()
 const pending = new Map<string, Promise<string>>()
 
-export function shortId(id: string): string {
-  return id.slice(0, 8)
-}
+const FALLBACK = 'anonymous'
 
 function resolve(id: string): Promise<string> {
   let p = pending.get(id)
   if (!p) {
     p = api
       .profile(id)
-      .then((profile) => profile.display_name ?? shortId(id))
-      .catch(() => shortId(id))
+      .then((profile) => profile.display_name ?? FALLBACK)
+      .catch(() => FALLBACK)
       .then((name) => {
         cache.set(id, name)
         pending.delete(id)
@@ -29,7 +28,7 @@ function resolve(id: string): Promise<string> {
 }
 
 export function useDisplayName(id: string | null | undefined): string {
-  const [name, setName] = useState(() => (id ? (cache.get(id) ?? shortId(id)) : ''))
+  const [name, setName] = useState(() => (id ? (cache.get(id) ?? '…') : ''))
 
   useEffect(() => {
     if (!id) return
@@ -37,7 +36,7 @@ export function useDisplayName(id: string | null | undefined): string {
       setName(cache.get(id)!)
       return
     }
-    setName(shortId(id))
+    setName('…')
     let alive = true
     void resolve(id).then((n) => {
       if (alive) setName(n)

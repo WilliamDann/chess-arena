@@ -57,9 +57,6 @@ func (s *GameStore) GetById(ctx context.Context, item uuid.UUID) (model.Game, er
 	return game, err
 }
 
-// SetResult records the result for a game that is still undecided, reporting
-// whether this call was the one that decided it. Concurrent enders race on
-// the guard and only one wins.
 func (s *GameStore) SetResult(ctx context.Context, id uuid.UUID, result string) (bool, error) {
 	tag, err := s.db.Exec(
 		ctx,
@@ -71,6 +68,59 @@ func (s *GameStore) SetResult(ctx context.Context, id uuid.UUID, result string) 
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
+}
+
+// CountForPlayer reports how many games the player has, games in play included.
+func (s *GameStore) CountForPlayer(ctx context.Context, player uuid.UUID) (int, error) {
+	var total int
+	err := s.db.QueryRow(
+		ctx,
+		"select count(*) from games where (white_player = $1 or black_player = $1)",
+		player,
+	).Scan(&total)
+	return total, err
+}
+
+func (s *GameStore) GetForPlayer(ctx context.Context, player uuid.UUID, limit, offset int) (Page[model.Game], error) {
+	// clamp rather than reject, so garbage input degrades to defaults
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	total, err := s.CountForPlayer(ctx, player)
+	if err != nil {
+		return Page[model.Game]{}, err
+	}
+
+	rows, err := s.db.Query(
+		ctx,
+		"select * from games where (white_player = $1 or black_player = $1) order by created_at desc, id desc limit $2 offset $3",
+		player,
+		limit,
+		offset,
+	)
+
+	if err != nil {
+		return Page[model.Game]{}, err
+	}
+
+	data, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.Game])
+	if err != nil {
+		return Page[model.Game]{}, err
+	}
+	if data == nil {
+		data = []model.Game{}
+	}
+
+	return Page[model.Game]{
+		Items:  data,
+		Limit:  limit,
+		Offset: offset,
+		Total:  total,
+	}, nil
 }
 
 func (s *GameStore) GetActiveForPlayer(ctx context.Context, player uuid.UUID) ([]model.Game, error) {

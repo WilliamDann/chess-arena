@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../api/client'
 import { useDisplayName } from '../api/profiles'
 import { wsUrl } from '../api/ws'
@@ -124,14 +124,15 @@ export function LobbyPage() {
   const create = async (e: FormEvent) => {
     e.preventDefault()
     setCreateError(null)
-    const to = opponent.trim()
-    if (to && !UUID_RE.test(to)) {
-      setCreateError('opponent must be a player id (uuid)')
+    const trimmed = opponent.trim()
+    const to = trimmed ? trimmed.match(UUID_RE)?.[0].toLowerCase() : undefined
+    if (trimmed && !to) {
+      setCreateError('paste your opponent’s profile link (or leave blank for an open challenge)')
       return
     }
     try {
       const c = await api.createChallenge({
-        to_player: to || undefined,
+        to_player: to,
         clock_initial_ms: minutes * 60_000,
         clock_increment_ms: increment * 1000,
       })
@@ -208,8 +209,12 @@ export function LobbyPage() {
               </label>
             </div>
             <label>
-              opponent id <span className="hint">(blank = open to anyone)</span>
-              <input value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="optional uuid" />
+              opponent <span className="hint">(blank = open to anyone)</span>
+              <input
+                value={opponent}
+                onChange={(e) => setOpponent(e.target.value)}
+                placeholder="paste their profile link"
+              />
             </label>
             {createError && <p className="error">{createError}</p>}
             <button className="primary">create challenge</button>
@@ -226,7 +231,7 @@ export function LobbyPage() {
           </form>
 
           <p className="hint">
-            your player id: <code className="selectable">{me}</code>
+            to be challenged directly, share your profile link (click your name up top)
           </p>
         </section>
 
@@ -296,7 +301,9 @@ function GameRow({ game, me, resume }: { game: Game; me: string; resume: () => v
   return (
     <li>
       <span className="tc">{`${game.clock_init_ms / 60_000}+${game.clock_inc_ms / 1000}`}</span>
-      <span className="who">{name}</span>
+      <span className="who">
+        <Link to={`/profile/${opponent}`}>{name}</Link>
+      </span>
       <button onClick={resume}>resume</button>
     </li>
   )
@@ -337,7 +344,7 @@ function ChallengeRow({
   return (
     <li>
       <span className="tc">{timeControl(challenge)}</span>
-      <span className="who">{other ? name : 'anyone'}</span>
+      <span className="who">{other ? <Link to={`/profile/${other}`}>{name}</Link> : 'anyone'}</span>
       <button onClick={() => void action.run(challenge.id)}>{action.label}</button>
     </li>
   )

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { Chess, type Square } from 'chess.js'
 import type { Key } from 'chessground/types'
 import { api } from '../api/client'
@@ -249,6 +249,7 @@ export function GamePage() {
     const name = color === 'white' ? whiteName : blackName
     return name || color
   }
+  const idOf = (color: Color) => (color === 'white' ? game?.white_player : game?.black_player)
 
   const orientation: Color = myColor ?? 'white'
   const topColor: Color = orientation === 'white' ? 'black' : 'white'
@@ -267,7 +268,12 @@ export function GamePage() {
   return (
     <div className="game">
       <div className="board-col">
-        <PlayerBar name={nameOf(topColor)} ms={clockOf(topColor)} active={gameOver === null && sideToMove === topColor} />
+        <PlayerBar
+          name={nameOf(topColor)}
+          playerId={idOf(topColor)}
+          ms={clockOf(topColor)}
+          active={gameOver === null && sideToMove === topColor}
+        />
         <Board
           fen={position.fen()}
           orientation={orientation}
@@ -282,6 +288,7 @@ export function GamePage() {
         />
         <PlayerBar
           name={nameOf(bottomColor)}
+          playerId={idOf(bottomColor)}
           ms={clockOf(bottomColor)}
           active={gameOver === null && sideToMove === bottomColor}
         />
@@ -367,10 +374,26 @@ function useTick(active: boolean) {
   }, [active])
 }
 
-function PlayerBar({ name, ms, active }: { name: string; ms: number | null; active: boolean }) {
+function PlayerBar({
+  name,
+  playerId,
+  ms,
+  active,
+}: {
+  name: string
+  playerId?: string
+  ms: number | null
+  active: boolean
+}) {
   return (
     <div className={active ? 'player-bar active' : 'player-bar'}>
-      <span className="player-name">{name}</span>
+      {playerId ? (
+        <Link className="player-name" to={`/profile/${playerId}`}>
+          {name}
+        </Link>
+      ) : (
+        <span className="player-name">{name}</span>
+      )}
       <span className="clock">{ms == null ? '--:--' : formatClock(ms)}</span>
     </div>
   )

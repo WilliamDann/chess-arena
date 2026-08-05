@@ -37,6 +37,13 @@ export interface Move {
   black_ms: number
 }
 
+export interface Page<T> {
+  items: T[]
+  limit: number
+  offset: number
+  total: number
+}
+
 export type LobbyEvent =
   | { type: 'lobby.create'; id: string; challenge: Challenge }
   | { type: 'lobby.delete'; id: string }

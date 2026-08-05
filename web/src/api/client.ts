@@ -1,4 +1,4 @@
-import type { Challenge, Game, Move, Profile } from './types'
+import type { Challenge, Game, Move, Page, Profile } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -49,4 +49,6 @@ export const api = {
   game: (id: string) => request<Game>(`/api/game/${id}`),
   gameMoves: (id: string) => request<Move[] | null>(`/api/game/${id}/moves`).then((r) => r ?? []),
   liveGames: () => request<Game[] | null>('/api/games/live').then((r) => r ?? []),
+  userGames: (id: string, limit = 20, offset = 0) =>
+    request<Page<Game>>(`/api/games/user/${id}?limit=${limit}&offset=${offset}`),
 }
