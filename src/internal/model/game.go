@@ -27,6 +27,6 @@ type Game struct {
 type CreateGame struct {
 	WhitePlayer    uuid.UUID `json:"white_player"`
 	BlackPlayer    uuid.UUID `json:"black_player"`
-	ClockInitial   int       `json:"clock_init_ms"`
-	ClockIncrement int       `json:"clock_inc_ms"`
+	ClockInitial   int       `json:"clock_initial_ms"`
+	ClockIncrement int       `json:"clock_increment_ms"`
 }
