@@ -8,21 +8,40 @@ import (
 	"github.com/williamdann/chess-arena/internal/pubsub"
 )
 
-func wsLobby(pubsub *pubsub.PubSub) wsHandler {
+func wsLobby(ps *pubsub.PubSub) wsHandler {
 	return func(conn *websocket.Conn, _ *http.Request) {
-		ch, drop := pubsub.Sub(events.TopicLobby)
-		defer drop()
+		lobby, dropLobby := ps.Sub(events.TopicLobby)
+		defer dropLobby()
+		pres, dropPres := ps.Sub(events.TopicPresence)
+		defer dropPres()
 
 		go func() {
 			for {
 				if _, _, err := conn.ReadMessage(); err != nil {
-					drop()
+					dropLobby()
+					dropPres()
 					return
 				}
 			}
 		}()
 
-		for msg := range ch {
+		// receiving from a closed channel nils it out, disabling that case;
+		// the loop ends once both subscriptions are gone
+		for lobby != nil || pres != nil {
+			var msg pubsub.Message
+			var ok bool
+			select {
+			case msg, ok = <-lobby:
+				if !ok {
+					lobby = nil
+					continue
+				}
+			case msg, ok = <-pres:
+				if !ok {
+					pres = nil
+					continue
+				}
+			}
 			if err := conn.WriteMessage(websocket.TextMessage, msg.Payload); err != nil {
 				return
 			}

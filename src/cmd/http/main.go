@@ -44,6 +44,7 @@ func main() {
 	challengeService := services.NewChallengeService(challenges, games, pubsub, sessionService.RequireAuth)
 	gameService := services.NewGameService(games, sessionService.RequireAuth)
 	moveService := services.NewMoveService(moves)
+	presenceService := services.NewPresenceService(postgres.NewPresenceStore(pool), sessionService.RequireAuth)
 
 	userService.Register(mux)
 	sessionService.Register(mux)
@@ -51,6 +52,7 @@ func main() {
 	challengeService.Register(mux)
 	gameService.Register(mux)
 	moveService.Register(mux)
+	presenceService.Register(mux)
 
 	slog.Info("starting http server on 0.0.0.0:8080")
 	http.ListenAndServe("0.0.0.0:8080", mux)

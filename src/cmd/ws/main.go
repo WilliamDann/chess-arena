@@ -21,10 +21,10 @@ var upgrader = websocket.Upgrader{
 
 type wsHandler func(*websocket.Conn, *http.Request)
 
-func connectThen(handler wsHandler) http.HandlerFunc {
+func connectThen(pres *presence, handler wsHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// validate session
-		_, ok := services.SessionFromContext(r.Context())
+		session, ok := services.SessionFromContext(r.Context())
 		if !ok {
 			http.Error(w, "invalid session", http.StatusUnauthorized)
 			return
@@ -38,6 +38,10 @@ func connectThen(handler wsHandler) http.HandlerFunc {
 		}
 
 		defer conn.Close()
+
+		// track presence for the life of the socket
+		tracked := pres.connected(r.Context(), session.UserId)
+		defer pres.disconnected(tracked)
 
 		// call websocket handler
 		handler(conn, r)
@@ -61,6 +65,7 @@ func main() {
 
 	users := postgres.NewUserStore(pool)
 	sessions := postgres.NewSessionStore(pool)
+	profiles := postgres.NewProfileStore(pool)
 	games := postgres.NewGameStore(pool)
 	moves := postgres.NewMoveStore(pool)
 
@@ -70,10 +75,14 @@ func main() {
 	pubsub := pubsub.NewPubSub(pool)
 	go pubsub.Listen(ctx)
 
+	// track connected players across all ws servers
+	pres := newPresence(postgres.NewPresenceStore(pool), profiles, pubsub)
+	go pres.run(ctx)
+
 	// start websocket server
 	mux := http.NewServeMux()
-	mux.Handle("GET /lobby", sessionService.RequireAuth(connectThen(wsLobby(pubsub))))
-	mux.Handle("GET /game/{id}", sessionService.RequireAuth(connectThen(wsGame(games, moves, pubsub))))
+	mux.Handle("GET /lobby", sessionService.RequireAuth(connectThen(pres, wsLobby(pubsub))))
+	mux.Handle("GET /game/{id}", sessionService.RequireAuth(connectThen(pres, wsGame(games, moves, pubsub))))
 
 	slog.Info("started websocket server on 0.0.0.0:8081")
 	http.ListenAndServe("0.0.0.0:8081", mux)

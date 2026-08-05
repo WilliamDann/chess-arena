@@ -1,5 +1,6 @@
 import { BrowserRouter, Link, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthContext'
+import { ChallengeBell } from './components/ChallengeBell'
 import { GamePage } from './pages/GamePage'
 import { LobbyPage } from './pages/LobbyPage'
 import { LoginPage } from './pages/LoginPage'
@@ -16,6 +17,7 @@ function Shell() {
           ♞ chess arena
         </Link>
         <div className="topbar-right">
+          <ChallengeBell />
           <Link to={`/profile/${profile.id}`}>{profile.display_name ?? 'anonymous'}</Link>
           <button className="ghost" onClick={() => void logout()}>
             sign out

@@ -47,6 +47,13 @@ export interface Page<T> {
 export type LobbyEvent =
   | { type: 'lobby.create'; id: string; challenge: Challenge }
   | { type: 'lobby.delete'; id: string }
+  // deleted because it was accepted; carries the game it produced
+  | { type: 'lobby.accept'; id: string; game: Game }
+
+// delivered on the lobby socket alongside LobbyEvent
+export type PresenceEvent =
+  | { type: 'presence.join'; profile: Profile }
+  | { type: 'presence.leave'; profile: Profile }
 
 export type GameEvent =
   | { type: 'game.move'; move: Move }

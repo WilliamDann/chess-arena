@@ -44,7 +44,10 @@ export const api = {
   createChallenge: (req: { to_player?: string; clock_initial_ms: number; clock_increment_ms: number }) =>
     request<Challenge>('/api/challenge', json(req)),
   deleteChallenge: (id: string) => request<void>(`/api/challenge/${id}`, { method: 'DELETE' }),
+  clearIncomingChallenges: () => request<void>('/api/challenges/in', { method: 'DELETE' }),
   acceptChallenge: (id: string) => request<Game>(`/api/challenge/accept/${id}`, { method: 'POST' }),
+
+  activePlayers: () => request<Profile[] | null>('/api/players/active').then((r) => r ?? []),
 
   game: (id: string) => request<Game>(`/api/game/${id}`),
   gameMoves: (id: string) => request<Move[] | null>(`/api/game/${id}/moves`).then((r) => r ?? []),

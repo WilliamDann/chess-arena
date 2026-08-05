@@ -241,7 +241,6 @@ func (s *ChallengeService) accept(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unable to accept challenge", http.StatusNotFound)
 		return
 	}
-	s.pubsub.Pub(r.Context(), events.LobbyDeleteEvent(challenge))
 
 	// coin flip for white/black
 	whitePlayer := challenge.FromPlayer
@@ -259,10 +258,16 @@ func (s *ChallengeService) accept(w http.ResponseWriter, r *http.Request) {
 	}
 	game, err := s.games.Create(r.Context(), request)
 	if err != nil {
+		// the claim already removed the challenge, so still tell the lobby
+		s.pubsub.Pub(r.Context(), events.LobbyDeleteEvent(challenge))
 		slog.Error("failed to create game", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+
+	// published only after the game exists, so the challenger can join it
+	// directly off the event
+	s.pubsub.Pub(r.Context(), events.LobbyAcceptEvent(challenge, game))
 
 	// send result
 	w.Header().Set("Content-Type", "application/json")
