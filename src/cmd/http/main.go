@@ -42,12 +42,14 @@ func main() {
 	sessionService := services.NewSessionService(users, sessions)
 	profileService := services.NewProfileService(profiles, sessionService.RequireAuth)
 	challengeService := services.NewChallengeService(challenges, games, pubsub, sessionService.RequireAuth)
+	gameService := services.NewGameService(games, sessionService.RequireAuth)
 	moveService := services.NewMoveService(moves)
 
 	userService.Register(mux)
 	sessionService.Register(mux)
 	profileService.Register(mux)
 	challengeService.Register(mux)
+	gameService.Register(mux)
 	moveService.Register(mux)
 
 	slog.Info("starting http server on 0.0.0.0:8080")

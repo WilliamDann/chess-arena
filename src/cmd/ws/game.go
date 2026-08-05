@@ -114,9 +114,25 @@ func (c *gameConn) handle(ctx context.Context, data []byte) error {
 		return c.handleMove(ctx, msg.SendMove)
 	case "flag":
 		return c.handleFlag(ctx)
+	case "resign":
+		return c.handleResign(ctx)
 	default:
 		return fmt.Errorf("unknown message type %q", msg.Type)
 	}
+}
+
+// handleResign forfeits the game for the resigning player, on or off turn.
+func (c *gameConn) handleResign(ctx context.Context) error {
+	var result chess.Outcome
+	switch c.player {
+	case c.game.WhitePlayer:
+		result = chess.BlackWon
+	case c.game.BlackPlayer:
+		result = chess.WhiteWon
+	default:
+		return errors.New("not a player")
+	}
+	return c.endGame(ctx, result.String(), "Resignation")
 }
 
 // handleMove validates a client move against the current position, persists

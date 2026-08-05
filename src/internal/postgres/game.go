@@ -73,15 +73,15 @@ func (s *GameStore) SetResult(ctx context.Context, id uuid.UUID, result string) 
 	return tag.RowsAffected() > 0, nil
 }
 
-func (s *GameStore) GetActiveForPlayer(ctx context.Context, player uuid.UUID) (model.Game, error) {
+func (s *GameStore) GetActiveForPlayer(ctx context.Context, player uuid.UUID) ([]model.Game, error) {
 	rows, err := s.db.Query(ctx, "select * from games where (white_player = $1 or black_player = $1) and result = '*' order by created_at desc", player)
 	if err != nil {
-		return model.Game{}, err
+		return []model.Game{}, err
 	}
 
-	game, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[model.Game])
+	game, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.Game])
 	if err != nil {
-		return model.Game{}, err
+		return []model.Game{}, err
 	}
 
 	return game, nil
