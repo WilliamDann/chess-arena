@@ -13,15 +13,9 @@ import (
 	"github.com/williamdann/chess-arena/internal/services"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return r.Header.Get("Origin") == "http://localhost:8080"
-	},
-}
-
 type wsHandler func(*websocket.Conn, *http.Request)
 
-func connectThen(pres *presence, handler wsHandler) http.HandlerFunc {
+func connectThen(upgrader websocket.Upgrader, pres *presence, handler wsHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// validate session
 		session, ok := services.SessionFromContext(r.Context())
@@ -49,6 +43,19 @@ func connectThen(pres *presence, handler wsHandler) http.HandlerFunc {
 }
 
 func main() {
+	// only allow ws upgrades from the site itself
+	origin := os.Getenv("ALLOWED_ORIGIN")
+	if origin == "" {
+		slog.Error("ALLOWED_ORIGIN not set")
+		os.Exit(1)
+	}
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return r.Header.Get("Origin") == origin
+		},
+	}
+
 	// connect to database
 	ctx := context.Background()
 	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
@@ -81,8 +88,8 @@ func main() {
 
 	// start websocket server
 	mux := http.NewServeMux()
-	mux.Handle("GET /lobby", sessionService.RequireAuth(connectThen(pres, wsLobby(pubsub))))
-	mux.Handle("GET /game/{id}", sessionService.RequireAuth(connectThen(pres, wsGame(games, moves, pubsub))))
+	mux.Handle("GET /lobby", sessionService.RequireAuth(connectThen(upgrader, pres, wsLobby(pubsub))))
+	mux.Handle("GET /game/{id}", sessionService.RequireAuth(connectThen(upgrader, pres, wsGame(games, moves, pubsub))))
 
 	slog.Info("started websocket server on 0.0.0.0:8081")
 	http.ListenAndServe("0.0.0.0:8081", mux)
