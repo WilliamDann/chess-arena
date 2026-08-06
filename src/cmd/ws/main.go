@@ -76,7 +76,7 @@ func main() {
 	games := postgres.NewGameStore(pool)
 	moves := postgres.NewMoveStore(pool)
 
-	sessionService := services.NewSessionService(users, sessions)
+	sessionService := services.NewSessionService(users, sessions, os.Getenv("SECURE_COOKIES") == "true")
 
 	// start events listner
 	pubsub := pubsub.NewPubSub(pool)

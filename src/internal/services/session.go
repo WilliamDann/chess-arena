@@ -26,10 +26,26 @@ func SessionFromContext(ctx context.Context) (model.Session, bool) {
 type SessionService struct {
 	users    *postgres.UserStore
 	sessions *postgres.SessionStore
+	secure   bool
 }
 
-func NewSessionService(users *postgres.UserStore, sessions *postgres.SessionStore) *SessionService {
-	return &SessionService{users, sessions}
+// secure marks session cookies https-only; false is for plain-http local dev.
+func NewSessionService(users *postgres.UserStore, sessions *postgres.SessionStore, secure bool) *SessionService {
+	return &SessionService{users, sessions, secure}
+}
+
+// sessionCookie builds the session cookie; an empty value with a past expiry
+// clears it.
+func (s *SessionService) sessionCookie(value string, expires time.Time) *http.Cookie {
+	return &http.Cookie{
+		Name:     "chess-arena-session",
+		Value:    value,
+		Path:     "/",
+		Expires:  expires,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   s.secure,
+	}
 }
 
 func (s *SessionService) Register(mux *http.ServeMux) {
@@ -79,15 +95,7 @@ func (s *SessionService) createSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// set session cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "chess-arena-session",
-		Value:    data.Id.String(),
-		Path:     "/",
-		Expires:  data.ExpiresAt,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   false, // TODO when using https, set to true
-	})
+	http.SetCookie(w, s.sessionCookie(data.Id.String(), data.ExpiresAt))
 
 	// OK
 	w.Header().Set("Content-Type", "application/json")
@@ -124,15 +132,7 @@ func (s *SessionService) signOut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// unset cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "chess-arena-session",
-		Value:    "",
-		Path:     "/",
-		Expires:  time.Now(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   false, // TODO when using https, set to true
-	})
+	http.SetCookie(w, s.sessionCookie("", time.Now()))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -150,15 +150,7 @@ func (s *SessionService) signOutAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// unset cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "chess-arena-session",
-		Value:    "",
-		Path:     "/",
-		Expires:  time.Now(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   false, // TODO when using https, set to true
-	})
+	http.SetCookie(w, s.sessionCookie("", time.Now()))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -191,15 +183,7 @@ func (s *SessionService) RequireAuth(next http.Handler) http.Handler {
 			if err != nil {
 				slog.Error("failed token refresh", "err", err)
 			} else {
-				http.SetCookie(w, &http.Cookie{
-					Name:     "chess-arena-session",
-					Value:    refreshed.Id.String(),
-					Path:     "/",
-					Expires:  refreshed.ExpiresAt,
-					HttpOnly: true,
-					SameSite: http.SameSiteLaxMode,
-					Secure:   false, // TODO when using https, set to true
-				})
+				http.SetCookie(w, s.sessionCookie(refreshed.Id.String(), refreshed.ExpiresAt))
 				session = refreshed
 			}
 		}

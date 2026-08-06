@@ -38,8 +38,10 @@ func main() {
 	games := postgres.NewGameStore(pool)
 	moves := postgres.NewMoveStore(pool)
 
+	secureCookies := os.Getenv("SECURE_COOKIES") == "true"
+
 	userService := services.NewUserService(users, profiles)
-	sessionService := services.NewSessionService(users, sessions)
+	sessionService := services.NewSessionService(users, sessions, secureCookies)
 	profileService := services.NewProfileService(profiles, sessionService.RequireAuth)
 	challengeService := services.NewChallengeService(challenges, games, pubsub, sessionService.RequireAuth)
 	gameService := services.NewGameService(games, sessionService.RequireAuth)
